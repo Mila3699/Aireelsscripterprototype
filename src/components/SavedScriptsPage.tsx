@@ -290,8 +290,7 @@ export function SavedScriptsPage({ onBack }: SavedScriptsPageProps) {
                   {/* Развёрнутое содержимое */}
                   {expandedScript === script.id && (
                     <div className="bg-gray-50 border-t">
-                      <div className="max-h-[60vh] md:max-h-[600px] overflow-y-auto">
-                        <div className="p-4 md:p-6 space-y-6">
+                      <div className="p-4 md:p-6 space-y-6">
                           {/* Транскрибация */}
                           <div>
                             <h3 className="mb-3">📝 Транскрибация</h3>
@@ -356,7 +355,6 @@ export function SavedScriptsPage({ onBack }: SavedScriptsPageProps) {
                               ))}
                             </div>
                           </div>
-                        </div>
                       </div>
                     </div>
                   )}
