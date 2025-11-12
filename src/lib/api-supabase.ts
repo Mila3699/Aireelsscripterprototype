@@ -12,6 +12,7 @@ import { sanitizeAnalysisResult } from './sanitizer';
 import { videoAnalysisLimiter } from './rateLimiter';
 import { MOCK_ANALYSIS_RESULT } from './mockData';
 import { STORAGE } from './constants';
+import { supabase } from './supabase';
 
 /**
  * Загрузить видео и проанализировать (ПРОТОТИП - БЕЗ РЕАЛЬНОГО BACKEND)
@@ -46,48 +47,70 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
 }
 
 /**
- * Сохранить сценарий (ПРОТОТИП - используем localStorage)
+ * Сохранить сценарий в Supabase Database
  */
 export async function saveScript(
   result: VideoAnalysisResult
 ): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
-    console.log('💾 ПРОТОТИП: Сохраняем в localStorage');
+    console.log('💾 Сохраняем в Supabase Database...');
+    
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return {
+        success: false,
+        error: 'Необходимо войти в систему для сохранения сценария',
+      };
+    }
     
     // Санитизируем данные
     const sanitizedResult = sanitizeAnalysisResult(result);
     
-    const scriptId = crypto.randomUUID();
-    const savedScript: SavedScript = {
-      ...sanitizedResult,
-      id: scriptId,
-      savedAt: new Date().toISOString(),
-    };
+    // Проверяем лимит (необязательно для малой группы, но оставим)
+    const { count } = await supabase
+      .from('scripts')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id);
     
-    // Получаем текущие сценарии
-    const stored = localStorage.getItem(STORAGE.SCRIPTS_KEY);
-    const scripts: SavedScript[] = stored ? JSON.parse(stored) : [];
-    
-    // Проверка лимита
-    if (scripts.length >= STORAGE.MAX_SAVED_SCRIPTS) {
+    if (count && count >= STORAGE.MAX_SAVED_SCRIPTS) {
       return {
         success: false,
         error: `Лимит сохранённых сценариев исчерпан (${STORAGE.MAX_SAVED_SCRIPTS}). Удалите ненужные сценарии.`,
       };
     }
     
-    // Добавляем новый сценарий
-    scripts.unshift(savedScript);
-    localStorage.setItem(STORAGE.SCRIPTS_KEY, JSON.stringify(scripts));
+    // Вставляем в базу данных
+    const { data, error } = await supabase
+      .from('scripts')
+      .insert({
+        user_id: user.id,
+        title: sanitizedResult.title,
+        original: sanitizedResult.original,
+        keys: sanitizedResult.keys,
+        script: sanitizedResult.script,
+        recommendations: sanitizedResult.recommendations,
+      })
+      .select()
+      .single();
     
-    console.log('✅ Сценарий сохранён:', scriptId);
+    if (error) {
+      console.error('❌ Ошибка Supabase:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+    
+    console.log('✅ Сценарий сохранён в базу:', data.id);
     
     // Отправляем событие для обновления UI
     window.dispatchEvent(new Event('scriptsUpdated'));
 
     return {
       success: true,
-      id: scriptId,
+      id: data.id,
     };
   } catch (error) {
     console.error('Ошибка сохранения:', error);
@@ -99,23 +122,45 @@ export async function saveScript(
 }
 
 /**
- * Получить все сохранённые сценарии (ПРОТОТИП - из localStorage)
+ * Получить все сохранённые сценарии из Supabase Database
  */
 export async function getSavedScripts(): Promise<SavedScript[]> {
   try {
-    console.log('📂 ПРОТОТИП: Загружаем из localStorage');
+    console.log('📂 Загружаем из Supabase Database...');
     
-    const stored = localStorage.getItem(STORAGE.SCRIPTS_KEY);
-    if (!stored) {
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('⚠️ Пользователь не авторизован');
       return [];
     }
     
-    const scripts: SavedScript[] = JSON.parse(stored);
+    // Загружаем сценарии пользователя
+    const { data, error } = await supabase
+      .from('scripts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('saved_at', { ascending: false });
     
-    // Сортируем по дате (новые сверху)
-    return scripts.sort((a, b) => {
-      return new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime();
-    });
+    if (error) {
+      console.error('❌ Ошибка Supabase:', error);
+      return [];
+    }
+    
+    // Преобразуем данные из базы в формат SavedScript
+    const scripts: SavedScript[] = (data || []).map(row => ({
+      id: row.id,
+      title: row.title,
+      original: row.original,
+      keys: row.keys,
+      script: row.script,
+      recommendations: row.recommendations,
+      savedAt: row.saved_at,
+    }));
+    
+    console.log(`📊 Загружено ${scripts.length} сценариев`);
+    return scripts;
   } catch (error) {
     console.error('Ошибка загрузки сценариев:', error);
     return [];
@@ -123,21 +168,33 @@ export async function getSavedScripts(): Promise<SavedScript[]> {
 }
 
 /**
- * Удалить сценарий (ПРОТОТИП - из localStorage)
+ * Удалить сценарий из Supabase Database
  */
 export async function deleteScript(id: string): Promise<boolean> {
   try {
-    console.log('🗑️ ПРОТОТИП: Удаляем из localStorage');
+    console.log('🗑️ Удаляем из Supabase Database...');
     
-    const stored = localStorage.getItem(STORAGE.SCRIPTS_KEY);
-    if (!stored) {
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('⚠️ Пользователь не авторизован');
       return false;
     }
     
-    const scripts: SavedScript[] = JSON.parse(stored);
-    const filtered = scripts.filter(s => s.id !== id);
+    // Удаляем сценарий (RLS автоматически проверит что это сценарий пользователя)
+    const { error } = await supabase
+      .from('scripts')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
     
-    localStorage.setItem(STORAGE.SCRIPTS_KEY, JSON.stringify(filtered));
+    if (error) {
+      console.error('❌ Ошибка Supabase:', error);
+      return false;
+    }
+    
+    console.log('✅ Сценарий удалён:', id);
     
     // Отправляем событие для обновления UI
     window.dispatchEvent(new Event('scriptsUpdated'));
@@ -150,13 +207,32 @@ export async function deleteScript(id: string): Promise<boolean> {
 }
 
 /**
- * Удалить все сценарии (ПРОТОТИП - из localStorage)
+ * Удалить все сценарии пользователя из Supabase Database
  */
 export async function deleteAllScripts(): Promise<boolean> {
   try {
-    console.log('🗑️ ПРОТОТИП: Удаляем все из localStorage');
+    console.log('🗑️ Удаляем все сценарии из Supabase Database...');
     
-    localStorage.removeItem(STORAGE.SCRIPTS_KEY);
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      console.log('⚠️ Пользователь не авторизован');
+      return false;
+    }
+    
+    // Удаляем все сценарии пользователя
+    const { error } = await supabase
+      .from('scripts')
+      .delete()
+      .eq('user_id', user.id);
+    
+    if (error) {
+      console.error('❌ Ошибка Supabase:', error);
+      return false;
+    }
+    
+    console.log('✅ Все сценарии удалены');
     
     // Отправляем событие для обновления UI
     window.dispatchEvent(new Event('scriptsUpdated'));
