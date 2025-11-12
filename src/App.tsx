@@ -129,16 +129,21 @@ function AppContent() {
   };
 
   const handleAnalyze = async () => {
+    console.log('🎬 handleAnalyze вызван');
+    
     if (!uploadedFile) {
       toast.error('Пожалуйс��а, загрузите видео');
       return;
     }
 
+    console.log('📹 Файл есть, переключаемся на processing');
     setAppState('processing');
 
     try {
+      console.log('🚀 Запускаем processVideoWithSupabase...');
       // Используем прототип с mock-данными
       const result = await processVideoWithSupabase(uploadedFile);
+      console.log('✅ processVideoWithSupabase завершён');
       
       // Показываем информационное уведомление о прототипе
       if (result.isDemoMode) {
