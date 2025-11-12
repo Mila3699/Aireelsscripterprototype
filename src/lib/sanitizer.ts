@@ -6,14 +6,32 @@
  */
 
 /**
+ * Декодирование HTML entities
+ * Преобразует HTML entities обратно в нормальные символы
+ */
+export function decodeHtmlEntities(text: string): string {
+  const map: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#x27;': "'",
+    '&#x2F;': '/',
+    '&apos;': "'",
+  };
+  
+  return text.replace(/&(?:amp|lt|gt|quot|#x27|#x2F|apos);/g, (entity) => map[entity] || entity);
+}
+
+/**
  * Экранирование HTML-специальных символов
  * Преобразует потенциально опасные символы в HTML entities
  */
 export function escapeHtml(text: string): string {
   const map: Record<string, string> = {
-    '&': '&',
-    '<': '<',
-    '>': '>',
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
     '"': '&quot;',
     "'": '&#x27;',
     '/': '&#x2F;',
@@ -32,13 +50,18 @@ export function stripHtmlTags(text: string): string {
 
 /**
  * Санитизация текста для безопасного отображения
- * Удаляет HTML теги и экранирует специальные символы
+ * Декодирует HTML entities и удаляет опасные теги
  */
 export function sanitizeText(text: string): string {
   if (!text || typeof text !== 'string') return '';
   
-  // Сначала удаляем теги, затем экранируем оставшиеся символы
-  return escapeHtml(stripHtmlTags(text));
+  // Сначала декодируем HTML entities (от Gemini API)
+  let cleaned = decodeHtmlEntities(text);
+  
+  // Затем удаляем HTML теги для безопасности
+  cleaned = stripHtmlTags(cleaned);
+  
+  return cleaned;
 }
 
 /**
