@@ -11,7 +11,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from './components/ui/button';
 import { processVideoWithSupabase, getSavedScripts } from './lib/api-supabase';
 import type { VideoAnalysisResult } from './lib/api';
-import { getCurrentUser, signOut, supabase, checkLocalSession } from './lib/supabase';
+import { getCurrentUser, signOut, supabase, checkLocalSession, getLocalSessionUser } from './lib/supabase';
 import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner';
 
@@ -136,17 +136,17 @@ function AppContent() {
       return;
     }
 
-    // ВАЖНО: Получаем пользователя из кэшированной сессии ДО переключения на processing
-    console.log('👤 Получаем текущего пользователя из кэша...');
-    const { data: { session } } = await supabase.auth.getSession();
+    // ВАЖНО: СИНХРОННО получаем пользователя из localStorage (БЕЗ сетевых запросов!)
+    console.log('👤 Получаем текущего пользователя из localStorage...');
+    const localUser = getLocalSessionUser();
     
-    if (!session?.user) {
+    if (!localUser) {
       toast.error('Необходимо войти в систему');
       setAppState('upload');
       return;
     }
     
-    console.log('✅ Пользователь получен:', session.user.email);
+    console.log('✅ Пользователь получен:', localUser.email);
     console.log('📹 Файл есть, переключаемся на processing');
     setAppState('processing');
 
@@ -154,8 +154,8 @@ function AppContent() {
       console.log('🚀 Запускаем processVideoWithSupabase...');
       const result = await processVideoWithSupabase(
         uploadedFile,
-        session.user.id,
-        session.user.email
+        localUser.userId,
+        localUser.email
       );
       console.log('✅ processVideoWithSupabase завершён');
       

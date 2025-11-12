@@ -287,6 +287,42 @@ export function checkLocalSession() {
 }
 
 /**
+ * СИНХРОННО получить userId и email из localStorage (БЕЗ сетевых запросов!)
+ * Используется перед обработкой видео чтобы избежать зависания из-за Vite HMR
+ */
+export function getLocalSessionUser(): { userId: string; email: string } | null {
+  try {
+    const authStorage = localStorage.getItem(`sb-${projectId}-auth-token`);
+    
+    if (!authStorage) {
+      return null;
+    }
+    
+    const parsed = JSON.parse(authStorage);
+    
+    if (!parsed || !parsed.user) {
+      return null;
+    }
+    
+    // Проверяем не истёк ли токен
+    const expiresAt = parsed.expires_at * 1000;
+    const isExpired = Date.now() > expiresAt;
+    
+    if (isExpired) {
+      return null;
+    }
+    
+    return {
+      userId: parsed.user.id,
+      email: parsed.user.email || 'unknown'
+    };
+  } catch (error) {
+    console.error('❌ Ошибка чтения user из localStorage:', error);
+    return null;
+  }
+}
+
+/**
  * Получить текущего пользователя (для использования после успешной проверки localStorage)
  * Этот метод вызывается только когда нужны детали пользователя, не при загрузке приложения
  */
