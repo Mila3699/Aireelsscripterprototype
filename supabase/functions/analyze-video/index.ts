@@ -14,43 +14,49 @@ serve(async (req) => {
   }
 
   try {
-    const { videoPath } = await req.json()
+    const { videoPath, videoBase64, mimeType, userId } = await req.json()
     
-    if (!videoPath) {
-      throw new Error('videoPath is required')
-    }
-
-    // Инициализация Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
-    // Получаем signed URL для видео (действителен 1 час)
-    const { data: signedUrlData, error: signedUrlError } = await supabase
-      .storage
-      .from('video-uploads')
-      .createSignedUrl(videoPath, 3600)
-
-    if (signedUrlError) {
-      throw new Error(`Failed to create signed URL: ${signedUrlError.message}`)
-    }
-
-    const videoUrl = signedUrlData.signedUrl
-
-    // Скачиваем видео
-    console.log('Downloading video from:', videoUrl)
-    const videoResponse = await fetch(videoUrl)
+    let finalVideoBase64: string
+    let finalMimeType: string
     
-    if (!videoResponse.ok) {
-      throw new Error(`Failed to download video: ${videoResponse.statusText}`)
-    }
+    if (videoBase64) {
+      // НОВЫЙ ПОДХОД: Видео уже в base64 формате
+      console.log('Using pre-encoded base64 video')
+      finalVideoBase64 = videoBase64
+      finalMimeType = mimeType || 'video/mp4'
+    } else if (videoPath) {
+      // СТАРЫЙ ПОДХОД: Загружаем видео из Storage (для обратной совместимости)
+      console.log('Loading video from Storage:', videoPath)
+      
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      const supabase = createClient(supabaseUrl, supabaseKey)
 
-    const videoBlob = await videoResponse.blob()
-    const videoBuffer = await videoBlob.arrayBuffer()
-    
-    // Безопасная конвертация в base64 для больших файлов
-    const videoBytes = new Uint8Array(videoBuffer)
-    const videoBase64 = base64Encode(videoBytes)
+      const { data: signedUrlData, error: signedUrlError } = await supabase
+        .storage
+        .from('video-uploads')
+        .createSignedUrl(videoPath, 3600)
+
+      if (signedUrlError) {
+        throw new Error(`Failed to create signed URL: ${signedUrlError.message}`)
+      }
+
+      const videoUrl = signedUrlData.signedUrl
+      const videoResponse = await fetch(videoUrl)
+      
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video: ${videoResponse.statusText}`)
+      }
+
+      const videoBlob = await videoResponse.blob()
+      const videoBuffer = await videoBlob.arrayBuffer()
+      
+      const videoBytes = new Uint8Array(videoBuffer)
+      finalVideoBase64 = base64Encode(videoBytes)
+      finalMimeType = videoBlob.type || 'video/mp4'
+    } else {
+      throw new Error('Either videoPath or videoBase64 is required')
+    }
 
     // Промпт для Gemini AI
     const ANALYSIS_PROMPT = `
@@ -131,8 +137,8 @@ serve(async (req) => {
               },
               {
                 inline_data: {
-                  mime_type: videoBlob.type || 'video/mp4',
-                  data: videoBase64
+                  mime_type: finalMimeType,
+                  data: finalVideoBase64
                 }
               }
             ]
