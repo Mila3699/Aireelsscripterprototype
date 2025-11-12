@@ -57,16 +57,16 @@ export async function processVideoWithSupabase(
     console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
     console.log('📁 MIME type:', file.type);
     console.log('📂 Путь:', fileName);
-    console.log('⏳ Начинаем загрузку (timeout 60s)...');
     
     const uploadStartTime = Date.now();
     
-    // Загружаем видео БЕЗ Promise.race - просто ждем результат
+    // СПОСОБ 1: Попробуем upload с upsert:true (может помочь)
+    console.log('⏳ Способ 1: upload с upsert:true...');
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video-uploads')
       .upload(fileName, file, {
         cacheControl: '3600',
-        upsert: false,
+        upsert: true,  // Изменено на true!
       });
     
     const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
@@ -79,7 +79,7 @@ export async function processVideoWithSupabase(
     }
     
     if (!uploadData) {
-      throw new Error('Загрузка зависла. Проверьте Storage Policies для video-uploads bucket.');
+      throw new Error('Загрузка вернула пустой результат');
     }
     
     // Сохраняем путь для cleanup в finally
