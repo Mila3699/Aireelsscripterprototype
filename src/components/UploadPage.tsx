@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { LogoutButton } from './LogoutButton';
 import { motion } from 'motion/react';
 import { validateVideoFile } from '../lib/api';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { sanitizeFilename, isValidVideoMimeType } from '../lib/sanitizer';
 
 interface UploadPageProps {
