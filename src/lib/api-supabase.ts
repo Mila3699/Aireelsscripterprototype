@@ -53,6 +53,9 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
     const fileExtension = file.name.split('.').pop() || 'mp4';
     const fileName = `${user.id}/${timestamp}_${randomString}.${fileExtension}`;
     
+    console.log('📤 Загружаем видео в Supabase Storage...');
+    console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
+    
     // Загружаем видео в Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video-uploads')
@@ -72,12 +75,21 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
     console.log('✅ Видео загружено:', uploadData.path);
     console.log('🤖 Вызываем Gemini AI для анализа...');
     
-    // Вызываем Edge Function для анализа
-    const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-video', {
+    // Вызываем Edge Function для анализа с timeout 60 секунд
+    const edgeFunctionPromise = supabase.functions.invoke('analyze-video', {
       body: {
         videoPath: uploadData.path,
       },
     });
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Edge Function timeout (60s)')), 60000)
+    );
+    
+    const { data: analysisData, error: analysisError } = await Promise.race([
+      edgeFunctionPromise,
+      timeoutPromise
+    ]) as any;
     
     if (analysisError) {
       console.error('❌ Ошибка анализа:', analysisError);
@@ -100,9 +112,10 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
     // Fallback на mock данные если что-то пошло не так
     console.log('🎭 Переключаемся на демо-режим из-за ошибки');
     console.log('💡 Проверьте что Edge Function задеплоена и GEMINI_API_KEY настроен');
+    console.log('ℹ️ Ошибка:', error instanceof Error ? error.message : String(error));
     
-    // Имитируем время обработки
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Имитируем время обработки (4 секунды как в ProcessingPage)
+    await new Promise(resolve => setTimeout(resolve, 4000));
     
     const sanitizedResult = sanitizeAnalysisResult(MOCK_ANALYSIS_RESULT);
     
