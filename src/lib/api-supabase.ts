@@ -55,37 +55,22 @@ export async function processVideoWithSupabase(
     
     console.log('📤 Загружаем видео в Supabase Storage...');
     console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
+    console.log('📁 MIME type:', file.type);
     console.log('📂 Путь:', fileName);
+    console.log('⏳ Начинаем загрузку (timeout 60s)...');
     
-    // Загружаем видео в Supabase Storage с timeout 30 секунд
-    const uploadPromise = supabase.storage
+    const uploadStartTime = Date.now();
+    
+    // Загружаем видео БЕЗ Promise.race - просто ждем результат
+    const { data: uploadData, error: uploadError } = await supabase.storage
       .from('video-uploads')
       .upload(fileName, file, {
         cacheControl: '3600',
         upsert: false,
       });
     
-    const uploadTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('TIMEOUT_30S')), 30000)
-    );
-    
-    let uploadData, uploadError;
-    
-    try {
-      const result = await Promise.race([uploadPromise, uploadTimeoutPromise]) as any;
-      uploadData = result.data;
-      uploadError = result.error;
-    } catch (timeoutErr: any) {
-      if (timeoutErr.message === 'TIMEOUT_30S') {
-        console.error('❌ TIMEOUT загрузки видео (30s)');
-        console.error('🔍 Проверьте:');
-        console.error('1. Storage Policies созданы с split_part()');
-        console.error('2. Bucket video-uploads PRIVATE (не public)');
-        console.error('3. File size limit ≥ 30 MB');
-        throw new Error('Загрузка зависла на 30 секунд. Проверьте Storage Policies и настройки bucket.');
-      }
-      throw timeoutErr;
-    }
+    const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
+    console.log(`⏱️ Время загрузки: ${uploadTime}s`);
     
     if (uploadError) {
       console.error('❌ Ошибка загрузки видео:', uploadError);
