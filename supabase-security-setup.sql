@@ -38,10 +38,45 @@ CREATE POLICY "Users can delete own scripts"
   USING (auth.uid() = user_id);
 
 -- =============================================================================
+-- Шаг 4: Storage Policies для бакета video-uploads
+-- =============================================================================
+
+-- Политика INSERT: пользователи могут загружать видео
+CREATE POLICY "Users can upload their own videos"
+  ON storage.objects
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'video-uploads' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Политика SELECT: пользователи могут читать свои видео
+CREATE POLICY "Users can view their own videos"
+  ON storage.objects
+  FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'video-uploads' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Политика DELETE: пользователи могут удалять свои видео
+CREATE POLICY "Users can delete their own videos"
+  ON storage.objects
+  FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'video-uploads' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- =============================================================================
 -- ГОТОВО! ✅
 -- 
 -- Теперь:
 -- - Каждый пользователь видит только свои сценарии
+-- - Каждый пользователь может загружать/удалять только свои видео
 -- - Никто не может читать/удалять чужие данные
 -- - Данные защищены на уровне базы данных
 -- =============================================================================
