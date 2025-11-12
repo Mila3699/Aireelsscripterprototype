@@ -44,42 +44,58 @@ export async function processVideoWithSupabase(
   
   console.info(`📊 Осталось запросов: ${limitCheck.remainingRequests}/${videoAnalysisLimiter.getStatus().maxRequests}`);
   
+  let uploadedFilePath: string | null = null;
+  
   try {
-    console.log('📤 Подготовка видео для анализа...');
+    // Генерируем уникальное имя файла
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    const fileExtension = file.name.split('.').pop() || 'mp4';
+    const fileName = `${userId}/${timestamp}_${randomString}.${fileExtension}`;
+    
+    console.log('📤 Загружаем видео в Supabase Storage...');
     console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
     console.log('📁 MIME type:', file.type);
+    console.log('📂 Путь:', fileName);
     
-    const startTime = Date.now();
+    const uploadStartTime = Date.now();
     
-    // НОВЫЙ ПОДХОД: Конвертируем видео в base64 и отправляем напрямую в Edge Function
-    console.log('🔄 Конвертируем видео в base64...');
-    const base64Video = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Убираем "data:video/quicktime;base64," префикс
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = () => reject(new Error('Ошибка чтения файла'));
-      reader.readAsDataURL(file);
-    });
+    // Загружаем видео в Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('video-uploads')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
     
-    const conversionTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`✅ Конвертация завершена за ${conversionTime}s`);
-    console.log('🤖 Отправляем видео в Gemini AI через Edge Function...');
+    const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
+    console.log(`⏱️ Время загрузки: ${uploadTime}s`);
     
-    // Вызываем Edge Function для анализа с base64 видео
+    if (uploadError) {
+      console.error('❌ Ошибка загрузки видео:', uploadError);
+      console.error('📋 Детали ошибки:', JSON.stringify(uploadError, null, 2));
+      throw new Error(`Не удалось загрузить видео: ${uploadError.message || 'Проверьте Storage Policies'}`);
+    }
+    
+    if (!uploadData) {
+      throw new Error('Загрузка вернула пустой результат');
+    }
+    
+    // Сохраняем путь для cleanup
+    uploadedFilePath = uploadData.path;
+    
+    console.log('✅ Видео загружено:', uploadData.path);
+    console.log('🤖 Вызываем Gemini AI для анализа...');
+    
+    // Вызываем Edge Function для анализа
     const edgeFunctionPromise = supabase.functions.invoke('analyze-video', {
       body: {
-        videoBase64: base64Video,
-        mimeType: file.type,
-        userId: userId,
+        videoPath: uploadData.path,
       },
     });
     
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Edge Function timeout (90s)')), 90000)
+      setTimeout(() => reject(new Error('Edge Function timeout (60s)')), 60000)
     );
     
     const { data: analysisData, error: analysisError } = await Promise.race([
@@ -119,6 +135,16 @@ export async function processVideoWithSupabase(
       ...sanitizedResult,
       isDemoMode: true,
     };
+  } finally {
+    // ВСЕГДА удаляем загруженное видео (даже при ошибках)
+    if (uploadedFilePath) {
+      try {
+        await supabase.storage.from('video-uploads').remove([uploadedFilePath]);
+        console.log('🗑️ Временное видео удалено:', uploadedFilePath);
+      } catch (cleanupError) {
+        console.error('⚠️ Не удалось удалить временное видео:', cleanupError);
+      }
+    }
   }
 }
 
