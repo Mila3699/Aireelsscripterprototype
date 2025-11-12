@@ -290,7 +290,7 @@ export function SavedScriptsPage({ onBack }: SavedScriptsPageProps) {
                   {/* Развёрнутое содержимое */}
                   {expandedScript === script.id && (
                     <div className="bg-gray-50 border-t">
-                      <ScrollArea className="max-h-[60vh] md:max-h-[600px]">
+                      <div className="max-h-[60vh] md:max-h-[600px] overflow-y-auto">
                         <div className="p-4 md:p-6 space-y-6">
                           {/* Транскрибация */}
                           <div>
@@ -357,7 +357,7 @@ export function SavedScriptsPage({ onBack }: SavedScriptsPageProps) {
                             </div>
                           </div>
                         </div>
-                      </ScrollArea>
+                      </div>
                     </div>
                   )}
                 </Card>
