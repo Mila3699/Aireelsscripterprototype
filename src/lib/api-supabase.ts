@@ -21,19 +21,17 @@ import { supabase } from './supabase';
  * 1. Загружаем видео в Supabase Storage
  * 2. Вызываем Edge Function для анализа через Gemini API
  * 3. Возвращаем результат
+ * 
+ * @param file - Файл видео для анализа
+ * @param userId - ID пользователя из кэшированной сессии
+ * @param userEmail - Email пользователя для логирования (опционально)
  */
-export async function processVideoWithSupabase(file: File): Promise<VideoAnalysisResult> {
-  console.log('👤 Получаем текущего пользователя...');
-  
-  // ВАЖНО: Получаем пользователя ДО всего остального
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
-  if (userError || !user) {
-    console.error('❌ Ошибка получения пользователя:', userError);
-    throw new Error('Необходимо войти в систему для анализа видео');
-  }
-  
-  console.log('✅ Пользователь получен:', user.email);
+export async function processVideoWithSupabase(
+  file: File,
+  userId: string,
+  userEmail?: string
+): Promise<VideoAnalysisResult> {
+  console.log('✅ Пользователь:', userEmail || userId);
   
   // Проверка Rate Limiting
   const limitCheck = videoAnalysisLimiter.checkLimit();
@@ -49,12 +47,11 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
   let uploadedFilePath: string | null = null;
   
   try {
-    
     // Генерируем уникальное имя файла
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = file.name.split('.').pop() || 'mp4';
-    const fileName = `${user.id}/${timestamp}_${randomString}.${fileExtension}`;
+    const fileName = `${userId}/${timestamp}_${randomString}.${fileExtension}`;
     
     console.log('📤 Загружаем видео в Supabase Storage...');
     console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');

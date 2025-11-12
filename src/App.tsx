@@ -132,17 +132,31 @@ function AppContent() {
     console.log('🎬 handleAnalyze вызван');
     
     if (!uploadedFile) {
-      toast.error('Пожалуйс��а, загрузите видео');
+      toast.error('Пожалуйста, загрузите видео');
       return;
     }
 
+    // ВАЖНО: Получаем пользователя из кэшированной сессии ДО переключения на processing
+    console.log('👤 Получаем текущего пользователя из кэша...');
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user) {
+      toast.error('Необходимо войти в систему');
+      setAppState('upload');
+      return;
+    }
+    
+    console.log('✅ Пользователь получен:', session.user.email);
     console.log('📹 Файл есть, переключаемся на processing');
     setAppState('processing');
 
     try {
       console.log('🚀 Запускаем processVideoWithSupabase...');
-      // Используем прототип с mock-данными
-      const result = await processVideoWithSupabase(uploadedFile);
+      const result = await processVideoWithSupabase(
+        uploadedFile,
+        session.user.id,
+        session.user.email
+      );
       console.log('✅ processVideoWithSupabase завершён');
       
       // Показываем информационное уведомление о прототипе
