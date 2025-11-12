@@ -15,10 +15,12 @@ import { STORAGE } from './constants';
 import { supabase } from './supabase';
 
 /**
- * Загрузить видео и проанализировать (ПРОТОТИП - БЕЗ РЕАЛЬНОГО BACKEND)
+ * Загрузить видео и проанализировать через Gemini AI (PRODUCTION)
  * 
- * Для прототипа используем простую mock-функцию без реальных запросов к серверу.
- * Это позволяет приложению работать даже если backend не настроен.
+ * Новая архитектура:
+ * 1. Загружаем видео в Supabase Storage
+ * 2. Вызываем Edge Function для анализа через Gemini API
+ * 3. Возвращаем результат
  */
 export async function processVideoWithSupabase(file: File): Promise<VideoAnalysisResult> {
   // Проверка Rate Limiting
@@ -32,18 +34,86 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
   
   console.info(`📊 Осталось запросов: ${limitCheck.remainingRequests}/${videoAnalysisLimiter.getStatus().maxRequests}`);
   
-  console.log('🎭 ПРОТОТИП: Используем mock-данные (backend не требуется)');
-  console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
-  
-  // Имитируем время обработки (3 секунды)
-  await new Promise(resolve => setTimeout(resolve, 3000));
-  
-  console.log('✅ Mock-анализ завершен!');
-  
-  // Санитизируем результат
-  const sanitizedResult = sanitizeAnalysisResult(MOCK_ANALYSIS_RESULT);
-  
-  return sanitizedResult;
+  try {
+    // Получаем текущего пользователя
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('Необходимо войти в систему для анализа видео');
+    }
+    
+    console.log('📤 Загружаем видео в Supabase Storage...');
+    console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
+    
+    // Генерируем уникальное имя файла
+    const timestamp = Date.now();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    const fileExtension = file.name.split('.').pop() || 'mp4';
+    const fileName = `${user.id}/${timestamp}_${randomString}.${fileExtension}`;
+    
+    // Загружаем видео в Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('video-uploads')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+    
+    if (uploadError) {
+      console.error('❌ Ошибка загрузки видео:', uploadError);
+      throw new Error(`Не удалось загрузить видео: ${uploadError.message}`);
+    }
+    
+    console.log('✅ Видео загружено:', uploadData.path);
+    console.log('🤖 Вызываем Gemini AI для анализа...');
+    
+    // Вызываем Edge Function для анализа
+    const { data: analysisData, error: analysisError } = await supabase.functions.invoke('analyze-video', {
+      body: {
+        videoPath: uploadData.path,
+      },
+    });
+    
+    if (analysisError) {
+      console.error('❌ Ошибка анализа:', analysisError);
+      
+      // Удаляем загруженное видео в случае ошибки
+      await supabase.storage.from('video-uploads').remove([uploadData.path]);
+      
+      throw new Error(`Ошибка анализа видео: ${analysisError.message}`);
+    }
+    
+    console.log('✅ Анализ завершён успешно!');
+    
+    // Удаляем видео после успешного анализа (экономим место)
+    await supabase.storage.from('video-uploads').remove([uploadData.path]);
+    console.log('🗑️ Временное видео удалено');
+    
+    // Санитизируем результат
+    const sanitizedResult = sanitizeAnalysisResult(analysisData);
+    
+    return {
+      ...sanitizedResult,
+      isDemoMode: false,
+    };
+    
+  } catch (error) {
+    console.error('❌ Ошибка обработки видео:', error);
+    
+    // Fallback на mock данные если что-то пошло не так
+    console.log('🎭 Переключаемся на демо-режим из-за ошибки');
+    console.log('💡 Проверьте что Edge Function задеплоена и GEMINI_API_KEY настроен');
+    
+    // Имитируем время обработки
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const sanitizedResult = sanitizeAnalysisResult(MOCK_ANALYSIS_RESULT);
+    
+    return {
+      ...sanitizedResult,
+      isDemoMode: true,
+    };
+  }
 }
 
 /**
