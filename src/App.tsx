@@ -12,7 +12,7 @@ import { Button } from './components/ui/button';
 import { processVideoWithSupabase, getSavedScripts } from './lib/api-supabase';
 import type { VideoAnalysisResult } from './lib/api';
 import { getCurrentUser, signOut, supabase, checkLocalSession } from './lib/supabase';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner';
 
 export type AppState = 'login' | 'register' | 'upload' | 'processing' | 'results' | 'saved' | 'help';
