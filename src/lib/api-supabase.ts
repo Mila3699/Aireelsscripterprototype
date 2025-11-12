@@ -57,17 +57,30 @@ export async function processVideoWithSupabase(
     console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
     console.log('📂 Путь:', fileName);
     
-    // Загружаем видео в Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Загружаем видео в Supabase Storage с timeout 30 секунд
+    const uploadPromise = supabase.storage
       .from('video-uploads')
       .upload(fileName, file, {
         cacheControl: '3600',
         upsert: false,
       });
     
+    const uploadTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout загрузки видео (30s). Проверьте Storage Policies в Supabase Dashboard.')), 30000)
+    );
+    
+    const { data: uploadData, error: uploadError } = await Promise.race([
+      uploadPromise,
+      uploadTimeoutPromise
+    ]) as any;
+    
     if (uploadError) {
       console.error('❌ Ошибка загрузки видео:', uploadError);
       throw new Error(`Не удалось загрузить видео: ${uploadError.message}`);
+    }
+    
+    if (!uploadData) {
+      throw new Error('Загрузка зависла. Проверьте Storage Policies для video-uploads bucket.');
     }
     
     // Сохраняем путь для cleanup в finally
