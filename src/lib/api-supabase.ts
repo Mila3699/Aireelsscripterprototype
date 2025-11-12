@@ -34,6 +34,8 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
   
   console.info(`📊 Осталось запросов: ${limitCheck.remainingRequests}/${videoAnalysisLimiter.getStatus().maxRequests}`);
   
+  let uploadedFilePath: string | null = null;
+  
   try {
     // Получаем текущего пользователя
     const { data: { user } } = await supabase.auth.getUser();
@@ -64,6 +66,9 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
       throw new Error(`Не удалось загрузить видео: ${uploadError.message}`);
     }
     
+    // Сохраняем путь для cleanup в finally
+    uploadedFilePath = uploadData.path;
+    
     console.log('✅ Видео загружено:', uploadData.path);
     console.log('🤖 Вызываем Gemini AI для анализа...');
     
@@ -76,18 +81,10 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
     
     if (analysisError) {
       console.error('❌ Ошибка анализа:', analysisError);
-      
-      // Удаляем загруженное видео в случае ошибки
-      await supabase.storage.from('video-uploads').remove([uploadData.path]);
-      
       throw new Error(`Ошибка анализа видео: ${analysisError.message}`);
     }
     
     console.log('✅ Анализ завершён успешно!');
-    
-    // Удаляем видео после успешного анализа (экономим место)
-    await supabase.storage.from('video-uploads').remove([uploadData.path]);
-    console.log('🗑️ Временное видео удалено');
     
     // Санитизируем результат
     const sanitizedResult = sanitizeAnalysisResult(analysisData);
@@ -113,6 +110,16 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
       ...sanitizedResult,
       isDemoMode: true,
     };
+  } finally {
+    // ВСЕГДА удаляем загруженное видео (даже при ошибках)
+    if (uploadedFilePath) {
+      try {
+        await supabase.storage.from('video-uploads').remove([uploadedFilePath]);
+        console.log('🗑️ Временное видео удалено:', uploadedFilePath);
+      } catch (cleanupError) {
+        console.error('⚠️ Не удалось удалить временное видео:', cleanupError);
+      }
+    }
   }
 }
 
