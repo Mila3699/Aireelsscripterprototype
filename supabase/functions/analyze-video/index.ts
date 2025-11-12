@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { encode as base64Encode } from 'https://deno.land/std@0.168.0/encoding/base64.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,7 +47,10 @@ serve(async (req) => {
 
     const videoBlob = await videoResponse.blob()
     const videoBuffer = await videoBlob.arrayBuffer()
-    const videoBase64 = btoa(String.fromCharCode(...new Uint8Array(videoBuffer)))
+    
+    // Безопасная конвертация в base64 для больших файлов
+    const videoBytes = new Uint8Array(videoBuffer)
+    const videoBase64 = base64Encode(videoBytes)
 
     // Промпт для Gemini AI
     const ANALYSIS_PROMPT = `
@@ -149,6 +153,12 @@ serve(async (req) => {
 
     const geminiData = await geminiResponse.json()
     console.log('Gemini response received')
+
+    // Проверяем наличие candidates (может быть заблокировано safety фильтрами)
+    if (!geminiData.candidates || geminiData.candidates.length === 0) {
+      console.error('No candidates in Gemini response:', JSON.stringify(geminiData))
+      throw new Error('Gemini API returned no candidates. The video may have been blocked by safety filters.')
+    }
 
     // Извлекаем текст из ответа
     const generatedText = geminiData.candidates[0].content.parts[0].text
