@@ -38,14 +38,13 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
   
   try {
     // Получаем текущего пользователя
+    console.log('👤 Получаем текущего пользователя...');
     const { data: { user } } = await supabase.auth.getUser();
+    console.log('✅ Пользователь получен:', user?.email);
     
     if (!user) {
       throw new Error('Необходимо войти в систему для анализа видео');
     }
-    
-    console.log('📤 Загружаем видео в Supabase Storage...');
-    console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
     
     // Генерируем уникальное имя файла
     const timestamp = Date.now();
@@ -55,6 +54,7 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
     
     console.log('📤 Загружаем видео в Supabase Storage...');
     console.log('📁 Файл:', file.name, 'Размер:', (file.size / 1024 / 1024).toFixed(2), 'МБ');
+    console.log('📂 Путь:', fileName);
     
     // Загружаем видео в Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
