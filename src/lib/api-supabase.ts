@@ -66,17 +66,31 @@ export async function processVideoWithSupabase(
       });
     
     const uploadTimeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Timeout загрузки видео (30s). Проверьте Storage Policies в Supabase Dashboard.')), 30000)
+      setTimeout(() => reject(new Error('TIMEOUT_30S')), 30000)
     );
     
-    const { data: uploadData, error: uploadError } = await Promise.race([
-      uploadPromise,
-      uploadTimeoutPromise
-    ]) as any;
+    let uploadData, uploadError;
+    
+    try {
+      const result = await Promise.race([uploadPromise, uploadTimeoutPromise]) as any;
+      uploadData = result.data;
+      uploadError = result.error;
+    } catch (timeoutErr: any) {
+      if (timeoutErr.message === 'TIMEOUT_30S') {
+        console.error('❌ TIMEOUT загрузки видео (30s)');
+        console.error('🔍 Проверьте:');
+        console.error('1. Storage Policies созданы с split_part()');
+        console.error('2. Bucket video-uploads PRIVATE (не public)');
+        console.error('3. File size limit ≥ 30 MB');
+        throw new Error('Загрузка зависла на 30 секунд. Проверьте Storage Policies и настройки bucket.');
+      }
+      throw timeoutErr;
+    }
     
     if (uploadError) {
       console.error('❌ Ошибка загрузки видео:', uploadError);
-      throw new Error(`Не удалось загрузить видео: ${uploadError.message}`);
+      console.error('📋 Детали ошибки:', JSON.stringify(uploadError, null, 2));
+      throw new Error(`Не удалось загрузить видео: ${uploadError.message || uploadError.error || 'Unknown error'}`);
     }
     
     if (!uploadData) {
