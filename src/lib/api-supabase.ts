@@ -23,6 +23,18 @@ import { supabase } from './supabase';
  * 3. Возвращаем результат
  */
 export async function processVideoWithSupabase(file: File): Promise<VideoAnalysisResult> {
+  console.log('👤 Получаем текущего пользователя...');
+  
+  // ВАЖНО: Получаем пользователя ДО всего остального
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    console.error('❌ Ошибка получения пользователя:', userError);
+    throw new Error('Необходимо войти в систему для анализа видео');
+  }
+  
+  console.log('✅ Пользователь получен:', user.email);
+  
   // Проверка Rate Limiting
   const limitCheck = videoAnalysisLimiter.checkLimit();
   
@@ -37,14 +49,6 @@ export async function processVideoWithSupabase(file: File): Promise<VideoAnalysi
   let uploadedFilePath: string | null = null;
   
   try {
-    // Получаем текущего пользователя
-    console.log('👤 Получаем текущего пользователя...');
-    const { data: { user } } = await supabase.auth.getUser();
-    console.log('✅ Пользователь получен:', user?.email);
-    
-    if (!user) {
-      throw new Error('Необходимо войти в систему для анализа видео');
-    }
     
     // Генерируем уникальное имя файла
     const timestamp = Date.now();
