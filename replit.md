@@ -51,21 +51,69 @@ The application requires Supabase credentials:
   - Created workflow for development server
   - Added .gitignore for Node.js project
 
+- **2025-11-12**: Production-ready deployment setup
+  - ✅ Migrated from localStorage to Supabase Database
+  - ✅ Created `scripts` table with Row Level Security (RLS)
+  - ✅ Configured Autoscale deployment (build + run commands)
+  - ✅ Tested script saving/loading functionality
+  - ✅ Fixed scrolling bug in SavedScriptsPage
+  - ✅ Created deployment documentation (ИНСТРУКЦИЯ_ПО_ПУБЛИКАЦИИ.md)
+  - ✅ Created security setup SQL (supabase-security-setup.sql)
+
 ## Running the Application
+
+### Development
 The dev workflow automatically runs `npm run dev` which starts the Vite development server on port 5000.
+
+### Production Deployment
+Ready to publish! See **ИНСТРУКЦИЯ_ПО_ПУБЛИКАЦИИ.md** for step-by-step instructions.
+
+**Quick start:**
+1. Enable RLS policies (run `supabase-security-setup.sql`)
+2. Click "Deploy" button in Replit
+3. Wait 2-5 minutes for build & deployment
+4. Share the link with your users (5-7 people)
+
+**Deployment config:**
+- Type: Autoscale (web application)
+- Build: `npm run build`
+- Run: `npm run preview` (serves on port 5000)
 
 ## User Flow
 1. Login/Register page (Supabase authentication)
 2. Upload video for analysis
-3. Processing page (AI analysis)
+3. Processing page (AI analysis with mock data)
 4. Results page (generated scripts)
-5. Saved scripts page (view previous analyses)
-6. Help page
+5. Save scripts to Supabase Database
+6. Saved scripts page (view previous analyses from database)
+7. Help page
 
-## Known Features
-- Video upload and analysis
-- User authentication with Supabase
-- Script generation using Google Gemini AI
-- Save and retrieve analyzed scripts
-- Demo mode with mock data for testing
-- Success celebration animation on analysis completion
+## Current Features
+- ✅ User authentication with Supabase
+- ✅ Video upload interface
+- ✅ AI analysis with mock data (demo mode)
+- ✅ **Persistent data storage** in Supabase Database
+- ✅ Save and retrieve analyzed scripts
+- ✅ Row Level Security (each user sees only their data)
+- ✅ Success celebration animation
+- ✅ Fully responsive mobile UI
+- ✅ Search functionality in saved scripts
+- ✅ Production deployment ready
+
+## Data Storage
+- **Development**: Supabase PostgreSQL (free tier)
+- **User data**: Isolated per user with RLS policies
+- **Capacity**: 500 MB database (sufficient for 5-7 users)
+- **Scripts table**: Stores title, original transcription, keys, script scenes, recommendations
+
+## Cost Estimate (for 5-7 users)
+- **Supabase**: FREE (within free tier limits)
+- **Replit Deployment**: FREE or ~$7/month (depends on traffic)
+- **Total**: FREE or minimal cost
+
+## Architecture Notes
+- **Frontend**: React + TypeScript + Vite
+- **Database**: Supabase PostgreSQL with RLS
+- **Auth**: Supabase Auth (email/password)
+- **Deployment**: Replit Autoscale
+- **AI**: Mock data (real Gemini integration optional)
