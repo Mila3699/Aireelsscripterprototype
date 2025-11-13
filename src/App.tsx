@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UploadPage } from './components/UploadPage';
 import { ProcessingPage } from './components/ProcessingPage';
 import { ResultsPage } from './components/ResultsPage';
@@ -6,6 +6,7 @@ import { SavedScriptsPage } from './components/SavedScriptsPage';
 import { HelpPage } from './components/HelpPage';
 import { LoginPage } from './components/LoginPage';
 import { RegisterPage } from './components/RegisterPage';
+import { StorageTestPage } from './components/StorageTestPage';
 import { BottomNavigation } from './components/BottomNavigation';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Button } from './components/ui/button';
@@ -15,7 +16,7 @@ import { getCurrentUser, signOut, supabase, checkLocalSession, getLocalSessionUs
 import { toast } from 'sonner';
 import { Toaster } from './components/ui/sonner';
 
-export type AppState = 'login' | 'register' | 'upload' | 'processing' | 'results' | 'saved' | 'help';
+export type AppState = 'login' | 'register' | 'upload' | 'processing' | 'results' | 'saved' | 'help' | 'storage-test';
 
 function AppContent() {
   const [appState, setAppState] = useState<AppState>('login');
@@ -349,6 +350,9 @@ function AppContent() {
             )}
             {appState === 'help' && (
               <HelpPage onLogout={handleLogout} />
+            )}
+            {appState === 'storage-test' && (
+              <StorageTestPage />
             )}
 
             {/* Нижняя панель навигации */}

@@ -60,13 +60,22 @@ export async function processVideoWithSupabase(
     
     const uploadStartTime = Date.now();
     
-    // Загружаем видео в Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Загружаем видео в Storage с таймаутом
+    const uploadPromise = supabase.storage
       .from('video-uploads')
       .upload(fileName, file, {
         cacheControl: '3600',
         upsert: false,
       });
+    
+    const uploadTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Storage upload timeout (30s). Возможно, проблема с Storage Policies - выполните ИСПРАВЛЕНИЕ_STORAGE_POLICIES.sql')), 30000)
+    );
+    
+    const { data: uploadData, error: uploadError } = await Promise.race([
+      uploadPromise,
+      uploadTimeoutPromise
+    ]) as any;
     
     const uploadTime = ((Date.now() - uploadStartTime) / 1000).toFixed(2);
     console.log(`⏱️ Время загрузки: ${uploadTime}s`);
@@ -74,6 +83,8 @@ export async function processVideoWithSupabase(
     if (uploadError) {
       console.error('❌ Ошибка загрузки видео:', uploadError);
       console.error('📋 Детали ошибки:', JSON.stringify(uploadError, null, 2));
+      console.error('💡 РЕШЕНИЕ: Выполните SQL из файла ИСПРАВЛЕНИЕ_STORAGE_POLICIES.sql');
+      console.error('🔗 SQL Editor: https://supabase.com/dashboard/project/ssqcxrimivxqdydgmfcn/sql/new');
       throw new Error(`Не удалось загрузить видео: ${uploadError.message || 'Проверьте Storage Policies'}`);
     }
     
